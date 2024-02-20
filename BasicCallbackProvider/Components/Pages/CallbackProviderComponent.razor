@@ -1,0 +1,71 @@
+﻿@page "/"
+@using System.Collections.Generic
+@inject IServiceProvider ServiceProvider
+@rendermode InteractiveServer
+
+<h3>Callback Provider</h3>
+
+Enter conditions (true or false):
+<input @bind="userInput" @bind:event="oninput" />
+<button @onclick="CreateAndStartProvider">Add Condition</button>
+
+@if (messages.Any())
+{
+    <ul>
+        @foreach (var message in messages)
+        {
+            <li>@message</li>
+        }
+    </ul>
+}
+
+@if (providers.Any())
+{
+    foreach (var provider in providers)
+    {
+        <p>@provider.Condition()</p>
+    }
+
+}
+@code {
+    private string userInput;
+    private List<string> messages = new List<string>();
+    private List<CallbackProvider> providers = new List<CallbackProvider>();
+
+    private void CallbackListener(Payload payload)
+    {
+        InvokeAsync(() =>
+        {
+            var message = $"Status: {payload.Status}, Timestamp: {payload.Timestamp}";
+            messages.Add(message);
+            StateHasChanged();
+        });
+    }
+
+    private void CreateAndStartProvider()
+    {
+
+        bool inputResult;
+        DateTime date = DateTime.UtcNow;
+        if (bool.TryParse(userInput, out inputResult))
+        {
+            Action<Payload> callbackDelegate = new Action<Payload>(CallbackListener);
+            Func<Payload, bool> condition = (payload) =>
+            {
+                payload.Status = inputResult;
+                payload.Timestamp = date;
+                return payload.Status;
+            };
+
+            // Instantiating with a lambda that always creates a payload with the current input status.
+            // In a real scenario, this would be dynamic based on external conditions.
+            CallbackProvider provider = new CallbackProvider(callbackDelegate, 5000, condition);
+            providers.Add(provider);
+            provider.Start();
+        }
+        else
+        {
+            messages.Add("Invalid input. Please enter 'true' or 'false'.");
+        }
+    }
+}
